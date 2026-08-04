@@ -22,7 +22,7 @@ const AuthenticatedImage: React.FC<{ src: string; alt: string; className?: strin
         setImgSrc(objectUrl);
         setError(false);
       } catch (err) {
-        console.error('Image loading error:', err);
+        // Silent fail for demo data - images don't exist
         setError(true);
       }
     };
@@ -37,7 +37,29 @@ const AuthenticatedImage: React.FC<{ src: string; alt: string; className?: strin
   }, [src]);
 
   if (error) {
-    return <div className="img-placeholder error">Failed to load screenshot</div>;
+    // Show placeholder for missing screenshots
+    return (
+      <div className="img-placeholder error" style={{
+        background: 'linear-gradient(135deg, #1a1e2e 0%, #0f1117 100%)',
+        border: '2px dashed rgba(0,229,160,0.3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: 'var(--text-muted)',
+        fontSize: '14px',
+        padding: '20px',
+        textAlign: 'center',
+        minHeight: '200px'
+      }}>
+        <div>
+          <div style={{fontSize: '48px', marginBottom: '10px'}}>📸</div>
+          <div>Demo Screenshot</div>
+          <div style={{fontSize: '11px', marginTop: '5px', opacity: 0.7}}>
+            Install Chrome extension to capture real screenshots
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return imgSrc ? (
