@@ -20,7 +20,6 @@
   --card-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
-
 * {
   box-sizing: border-box;
   margin: 0;
@@ -1203,4 +1202,88 @@ code {
 @keyframes fadeEffect {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── MISSING UTILITY CLASSES (Bug Fixes) ─── */
+
+/* Fix 1: text-success - used for confidence % in screenshot inspector */
+.text-success { color: var(--success) !important; }
+
+/* Fix 2: text-muted - used as class (not just CSS variable) */
+.text-muted { color: var(--text-muted) !important; }
+
+/* Fix 3: highlight - used on inspect values */
+.highlight { color: var(--primary); font-weight: 600; }
+
+/* Fix 4: bar-percentage - used in analytics tab */
+.bar-percentage { font-weight: 700; font-size: 13px; color: var(--text-main); min-width: 40px; text-align: right; }
+
+/* Fix 5: tab-timeline height so overflow-y scroll works */
+.tab-timeline { height: calc(100vh - 160px); display: flex; flex-direction: column; }
+
+/* Fix 6: tab-analytics layout */
+.tab-analytics { display: flex; flex-direction: column; gap: 0; }
+
+/* Fix 7: tab-settings layout */
+.tab-settings { max-width: 700px; }
+
+/* Fix 8: sessions table horizontal scroll on small screens */
+.sessions-table-wrapper { overflow-x: auto; width: 100%; }
+
+/* Fix 9: loading spinner state */
+.loading-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 14px;
+  gap: 10px;
+}
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255,255,255,0.1);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Fix 10: pagination hidden when no results */
+.pagination-bar:empty { display: none; }
+
+/* Fix 11: background-clip compatibility */
+.gradient-text {
+  background: linear-gradient(135deg, #ffffff, #a5b4fc);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Fix 12: text-center utility */
+.text-center { text-align: center; }
+
+/* Fix 13: reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade, .pulse-dot, .spinner { animation: none !important; }
+}
+
+/* Fix 14: focus-visible for keyboard accessibility */
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Fix 15: activities list needs explicit flex grow + overflow */
+.tab-timeline .activities-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Fix 16: screenshots tab inspect panel scrollable */
+.inspect-details.overflow-y {
+  overflow-y: auto;
+  max-height: calc(100vh - 280px);
 }

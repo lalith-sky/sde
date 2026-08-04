@@ -3,14 +3,18 @@
   "name": "Visual AI Agent Monitor",
   "version": "1.0.0",
   "description": "Periodically captures screenshots of the active browser tab, processes them via AI, and tracks productivity timelines.",
+  "minimum_chrome_version": "88",
   "permissions": [
     "activeTab",
+    "tabs",
     "storage",
     "alarms",
-    "scripting"
+    "scripting",
+    "notifications"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -18,7 +22,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": ["http://*/*", "https://*/*"],
       "js": ["content.js"],
       "run_at": "document_end"
     }

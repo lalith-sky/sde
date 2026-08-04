@@ -102,12 +102,36 @@ export const App: React.FC = () => {
   const [timelineSession, setTimelineSession] = useState<any>(null);
   const [activeScreenshotIndex, setActiveScreenshotIndex] = useState(0);
 
+  // Loading states
   // Settings state
   const [screenshotInterval, setScreenshotInterval] = useState(10);
   const [captureMode, setCaptureMode] = useState<'active_tab' | 'desktop'>('active_tab');
   const [aiConfidenceThreshold, setAiConfidenceThreshold] = useState(0.7);
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [settingsMessage, setSettingsMessage] = useState('');
+
+  // Loading states
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [loadingActivities, setLoadingActivities] = useState(false);
+  const [loadingTimeline, setLoadingTimeline] = useState(false);
+  const [stopConfirmId, setStopConfirmId] = useState<string | null>(null);
+
+  // Safe URL hostname extractor - avoids crashes on invalid URLs
+  const safeHostname = (url: string) => {
+    try { return new URL(url).hostname; } catch { return 'System'; }
+  };
+
+  // Computed productivity score from real data
+  const productivityScore = (() => {
+    if (!stats?.topDomains?.length) return null;
+    const productiveDomains = ['github', 'stackoverflow', 'localhost', 'google', 'docs', 'developer', 'mdn', 'npm'];
+    const total = stats.topDomains.reduce((a: number, d: any) => a + d.count, 0);
+    const productive = stats.topDomains
+      .filter((d: any) => productiveDomains.some(p => d.domain.includes(p)))
+      .reduce((a: number, d: any) => a + d.count, 0);
+    return total > 0 ? Math.round((productive / total) * 100) : 0;
+  })();
 
   // 1. Check Auth state on load
   useEffect(() => {
@@ -132,6 +156,7 @@ export const App: React.FC = () => {
   // 2. Load Dashboard Stats
   const loadDashboardStats = async () => {
     if (!user) return;
+    setLoadingStats(true);
     try {
       const res = await api.getDashboardStats();
       if (res.success) {
@@ -141,27 +166,33 @@ export const App: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching dashboard stats:', err);
+    } finally {
+      setLoadingStats(false);
     }
   };
 
   // 3. Load Sessions List
   const loadSessions = async (page = 1) => {
     if (!user) return;
+    setLoadingSessions(true);
     try {
       const res = await api.getSessions(page, 10);
       if (res.success) {
         setSessions(res.sessions);
         setSessionsPage(res.pagination.page);
-        setSessionsTotalPages(res.pagination.pages);
+        setSessionsTotalPages(Math.max(res.pagination.pages, 1));
       }
     } catch (err) {
       console.error('Error fetching sessions list:', err);
+    } finally {
+      setLoadingSessions(false);
     }
   };
 
   // 4. Load Activities List (Timeline Filter view)
   const loadActivities = async (page = 1) => {
     if (!user) return;
+    setLoadingActivities(true);
     try {
       const res = await api.getActivities({
         page,
@@ -174,25 +205,31 @@ export const App: React.FC = () => {
       if (res.success) {
         setActivities(res.activities);
         setActivitiesPage(res.pagination.page);
-        setActivitiesTotalPages(res.pagination.pages);
+        setActivitiesTotalPages(Math.max(res.pagination.pages, 1));
       }
     } catch (err) {
       console.error('Error loading activities:', err);
+    } finally {
+      setLoadingActivities(false);
     }
   };
 
   // 5. Load Session specific timeline
   const loadSessionTimeline = async (sessId: string) => {
     if (!sessId) return;
+    setLoadingTimeline(true);
+    setActiveScreenshotIndex(0);
+    setTimelineData([]);
     try {
       const res = await api.getTimeline(sessId);
       if (res.success) {
         setTimelineSession(res.session);
         setTimelineData(res.activities);
-        setActiveScreenshotIndex(0);
       }
     } catch (err) {
       console.error('Error loading session timeline:', err);
+    } finally {
+      setLoadingTimeline(false);
     }
   };
 
@@ -275,8 +312,9 @@ export const App: React.FC = () => {
     setActiveTab('dashboard');
   };
 
-  // End an active session from the dashboard
+  // End an active session from the dashboard (with confirm)
   const handleStopActiveSession = async (sessId: string) => {
+    setStopConfirmId(null);
     try {
       const res = await api.endSession(sessId);
       if (res.success) {
@@ -284,7 +322,7 @@ export const App: React.FC = () => {
         if (activeTab === 'sessions') loadSessions(sessionsPage);
       }
     } catch (err) {
-      alert('Failed to stop session: ' + (err as Error).message);
+      console.error('Failed to stop session:', (err as Error).message);
     }
   };
 
@@ -499,12 +537,20 @@ export const App: React.FC = () => {
                         <span>Interval:</span>
                         <span>every {stats.activeSession.screenshotInterval} seconds</span>
                       </div>
-                      <button type="button" onClick={() => {
-                        console.log('🛑 Stop Session clicked:', stats.activeSession.id);
-                        handleStopActiveSession(stats.activeSession.id);
-                      }} className="btn-stop-monitoring">
-                        🛑 Stop Recording Session
-                      </button>
+                      {stopConfirmId === stats.activeSession.id ? (
+                        <div style={{display:'flex',gap:8,marginTop:10}}>
+                          <button type="button" onClick={() => handleStopActiveSession(stats.activeSession.id)} className="btn-stop-monitoring" style={{flex:1}}>
+                            ✓ Confirm Stop
+                          </button>
+                          <button type="button" onClick={() => setStopConfirmId(null)} className="btn-page" style={{flex:1}}>
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button type="button" onClick={() => setStopConfirmId(stats.activeSession.id)} className="btn-stop-monitoring">
+                          🛑 Stop Recording Session
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div className="empty-panel">
@@ -544,7 +590,7 @@ export const App: React.FC = () => {
                         <div className="feed-item" key={item._id}>
                           <div className="feed-item-header">
                             <span className="feed-time">{new Date(item.timestamp).toLocaleTimeString()}</span>
-                            <span className="feed-domain text-ellipsis">{item.url ? new URL(item.url).hostname : 'System'}</span>
+                            <span className="feed-domain text-ellipsis">{safeHostname(item.url || '')}</span>
                           </div>
                           <p className="feed-title text-ellipsis">{item.pageTitle}</p>
                           <p className="feed-summary text-ellipsis">{item.summary}</p>
@@ -581,6 +627,10 @@ export const App: React.FC = () => {
           {activeTab === 'sessions' && (
             <div className="tab-sessions animate-fade glass card-padding flex-column">
               <h2>Recorded Tracking Sessions</h2>
+              {loadingSessions ? (
+                <div className="loading-overlay"><div className="spinner"/> Loading sessions...</div>
+              ) : (
+              <div className="sessions-table-wrapper">
               <table className="sessions-table">
                 <thead>
                   <tr>
@@ -784,9 +834,192 @@ export const App: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 4: SCREENSHOT VIEWER & CAROUSEL */}
+          {/* TAB 4: SCREENSHOT VIEWER — matches "Visual Telemetry Archive" mockup */}
           {activeTab === 'screenshots' && (
-            <div className="tab-screenshots animate-fade flex-row gap-16">
+            <div className="tab-screenshots animate-fade">
+              {/* Page header */}
+              <div className="sc-page-header">
+                <div>
+                  <h2 className="sc-page-title">Visual Telemetry Archive</h2>
+                  <p className="sc-page-sub">🖥 Analyzing high-resolution capture nodes</p>
+                </div>
+                <div className="sc-header-actions">
+                  <div className="sc-search-bar">
+                    <span>🔍</span>
+                    <input
+                      placeholder="Filter by Session ID or Node..."
+                      value={selectedSessionId}
+                      onChange={e => { setSelectedSessionId(e.target.value); }}
+                    />
+                  </div>
+                  <button type="button" className="sc-btn-outline">⚙ Filters</button>
+                  <button type="button" className="sc-btn-primary">⬇ Export Batch</button>
+                </div>
+              </div>
+
+              <div className="sc-layout">
+                {/* Left: Capture Nodes grid */}
+                <div className="sc-nodes-panel glass">
+                  <div className="sc-nodes-header">
+                    <div className="sc-nodes-title">
+                      CAPTURE NODES
+                      <span className="sc-live-dot"><span className="pulse-dot" style={{background:'var(--success)'}}/>Live Syncing</span>
+                    </div>
+                    <div className="sc-view-btns">
+                      <button type="button" className="sc-view-btn active">⊞</button>
+                      <button type="button" className="sc-view-btn">≡</button>
+                    </div>
+                  </div>
+
+                  {/* Session selector */}
+                  <select
+                    className="sc-session-select"
+                    value={selectedSessionId}
+                    onChange={e => { setSelectedSessionId(e.target.value); loadSessionTimeline(e.target.value); }}
+                  >
+                    <option value="">Select Session...</option>
+                    {sessions.map(s => (
+                      <option key={s._id} value={s._id}>
+                        SID-{s._id.slice(-4).toUpperCase()} — {new Date(s.startTime).toLocaleDateString()}
+                      </option>
+                    ))}
+                  </select>
+
+                  {loadingTimeline ? (
+                    <div className="loading-overlay"><div className="spinner"/> Loading captures...</div>
+                  ) : timelineData.length > 0 ? (
+                    <div className="sc-nodes-grid">
+                      {timelineData.map((item, idx) => (
+                        <div
+                          key={item._id}
+                          className={`sc-node-card ${idx === activeScreenshotIndex ? 'active' : ''}`}
+                          onClick={() => setActiveScreenshotIndex(idx)}
+                        >
+                          <div className="sc-node-conf">{(item.confidence * 100).toFixed(0)}%<br/><span>Conf</span></div>
+                          <div className="sc-node-thumb">
+                            {item.screenshotId ? (
+                              <AuthenticatedImage
+                                src={api.getScreenshotUrl(item.screenshotId._id)}
+                                alt="capture"
+                                className="sc-thumb-img"
+                              />
+                            ) : (
+                              <div className="sc-thumb-placeholder">📸</div>
+                            )}
+                          </div>
+                          <div className="sc-node-meta">
+                            <div className="sc-node-id">SID-{item.sessionId?.toString().slice(-4).toUpperCase() || '????'}</div>
+                            <div className="sc-node-time">{new Date(item.timestamp).toTimeString().slice(0,8)}</div>
+                            <div className="sc-node-time">UTC</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="empty-panel" style={{margin:'40px 0'}}>
+                      <div style={{fontSize:32,marginBottom:10}}>📸</div>
+                      <div>No captures yet</div>
+                      <div style={{fontSize:12,marginTop:6,color:'var(--text-muted)'}}>Start a monitoring session via the Chrome Extension</div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Focus Inspector */}
+                {timelineData[activeScreenshotIndex] ? (
+                  <div className="sc-inspector glass">
+                    <div className="sc-inspector-header">
+                      <h3>Focus Inspector</h3>
+                      <div style={{display:'flex',gap:8}}>
+                        <button type="button" className="sc-icon-btn">🔍</button>
+                        <button type="button" className="sc-icon-btn">↗</button>
+                      </div>
+                    </div>
+
+                    {/* Main screenshot */}
+                    <div className="sc-inspector-img-wrap">
+                      {timelineData[activeScreenshotIndex].screenshotId ? (
+                        <AuthenticatedImage
+                          src={api.getScreenshotUrl(timelineData[activeScreenshotIndex].screenshotId._id)}
+                          alt="Focus"
+                          className="sc-inspector-img"
+                        />
+                      ) : (
+                        <div className="sc-inspector-placeholder">
+                          <div style={{fontSize:48}}>📸</div>
+                          <div>Install Chrome extension for real screenshots</div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* SID and timestamp */}
+                    <div className="sc-inspector-id-row">
+                      <div className="sc-inspector-sid">
+                        SID-{timelineData[activeScreenshotIndex].sessionId?.toString().slice(-4).toUpperCase() || '????'}-ALPHA
+                      </div>
+                      <span className="sc-conf-badge">{(timelineData[activeScreenshotIndex].confidence * 100).toFixed(1)}%</span>
+                    </div>
+                    <div className="sc-inspector-captured">
+                      Captured at {new Date(timelineData[activeScreenshotIndex].timestamp).toISOString().replace('T', ' ').slice(0, 19)} UTC
+                    </div>
+
+                    {/* Metadata grid */}
+                    <div className="sc-meta-grid">
+                      <div className="sc-meta-card">
+                        <div className="sc-meta-label">PAGE TITLE</div>
+                        <div className="sc-meta-value">{timelineData[activeScreenshotIndex].pageTitle}</div>
+                      </div>
+                      <div className="sc-meta-card">
+                        <div className="sc-meta-label">AI CONFIDENCE</div>
+                        <div className="sc-meta-value text-success">{(timelineData[activeScreenshotIndex].confidence * 100).toFixed(1)}%</div>
+                      </div>
+                      <div className="sc-meta-card">
+                        <div className="sc-meta-label">CAPTURE NODE</div>
+                        <div className="sc-meta-value"><span style={{color:'var(--success)',marginRight:5}}>●</span>LOCAL-HOST</div>
+                      </div>
+                      <div className="sc-meta-card">
+                        <div className="sc-meta-label">URL</div>
+                        <div className="sc-meta-value" style={{fontSize:11,wordBreak:'break-all'}}>
+                          <a href={timelineData[activeScreenshotIndex].url} target="_blank" rel="noreferrer" style={{color:'var(--accent)'}}>
+                            {timelineData[activeScreenshotIndex].url?.slice(0, 40) || 'System Tab'}
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Vision Engine Output */}
+                    <div className="sc-vision-section">
+                      <div className="sc-vision-title">🌐 VISION ENGINE OUTPUT</div>
+                      <div className="sc-vision-terminal">
+                        <div className="sc-terminal-line">&gt; SUMMARY: {timelineData[activeScreenshotIndex].summary}</div>
+                        {timelineData[activeScreenshotIndex].detectedTexts?.slice(0, 3).map((t: string, i: number) => (
+                          <div key={i} className="sc-terminal-line">&gt; DETECTED_TEXT: {t}</div>
+                        ))}
+                        <div className="sc-terminal-line">&gt; CONFIDENCE: {(timelineData[activeScreenshotIndex].confidence * 100).toFixed(0)}%</div>
+                      </div>
+                    </div>
+
+                    {/* Navigation */}
+                    <div className="sc-nav-btns">
+                      <button type="button" className="sc-nav-btn" disabled={activeScreenshotIndex === 0}
+                        onClick={() => setActiveScreenshotIndex(activeScreenshotIndex - 1)}>
+                        ◀ Previous
+                      </button>
+                      <span className="sc-nav-count">{activeScreenshotIndex + 1} / {timelineData.length}</span>
+                      <button type="button" className="sc-nav-btn" disabled={activeScreenshotIndex === timelineData.length - 1}
+                        onClick={() => setActiveScreenshotIndex(activeScreenshotIndex + 1)}>
+                        Next ▶
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="sc-inspector glass">
+                    <div className="sc-inspector-header"><h3>Focus Inspector</h3></div>
+                    <div className="empty-panel" style={{flex:1}}>Select a capture node to inspect</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
               {/* Left side: Carousel View */}
               <div className="screenshots-carousel-panel glass flex-column">
                 <div className="panel-header-select">
@@ -806,135 +1039,6 @@ export const App: React.FC = () => {
                     ))}
                   </select>
                 </div>
-
-                {timelineData && timelineData.length > 0 ? (
-                  <div className="carousel-wrapper">
-                    <div className="carousel-image-area">
-                      {timelineData[activeScreenshotIndex]?.screenshotId && (
-                        <AuthenticatedImage
-                          src={api.getScreenshotUrl(timelineData[activeScreenshotIndex].screenshotId._id)}
-                          alt="Carousel Focus"
-                          className="carousel-main-img"
-                        />
-                      )}
-                    </div>
-                    
-                    <div className="carousel-controls">
-                      <button
-                        type="button"
-                        disabled={activeScreenshotIndex === 0}
-                        onClick={() => {
-                          console.log('⬅️ Screenshot Previous clicked');
-                          setActiveScreenshotIndex(activeScreenshotIndex - 1);
-                        }}
-                        className="btn-carousel-ctrl"
-                      >
-                        ◀ Previous
-                      </button>
-                      <span className="carousel-indicator">
-                        Capture {activeScreenshotIndex + 1} of {timelineData.length}
-                      </span>
-                      <button
-                        type="button"
-                        disabled={activeScreenshotIndex === timelineData.length - 1}
-                        onClick={() => {
-                          console.log('➡️ Screenshot Next clicked');
-                          setActiveScreenshotIndex(activeScreenshotIndex + 1);
-                        }}
-                        className="btn-carousel-ctrl"
-                      >
-                        Next ▶
-                      </button>
-                    </div>
-
-                    {/* Thumbnail scrollbar */}
-                    <div className="thumbnails-scrollbar">
-                      {timelineData.map((item, idx) => (
-                        <div
-                          key={item._id}
-                          className={`thumbnail-box ${idx === activeScreenshotIndex ? 'active' : ''}`}
-                          onClick={() => setActiveScreenshotIndex(idx)}
-                        >
-                          {item.screenshotId && (
-                            <AuthenticatedImage
-                              src={api.getScreenshotUrl(item.screenshotId._id)}
-                              alt="thumb"
-                              className="thumb-img"
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="empty-panel">No screenshots captured in this session.</div>
-                )}
-              </div>
-
-              {/* Right side: AI inspection details */}
-              <div className="screenshots-inspect-panel glass card-padding flex-column">
-                <h2>AI Screen understanding</h2>
-                
-                {timelineData && timelineData[activeScreenshotIndex] ? (
-                  <div className="inspect-details overflow-y">
-                    <div className="inspect-row">
-                      <span className="inspect-label">Captured Time:</span>
-                      <span className="inspect-value">
-                        {new Date(timelineData[activeScreenshotIndex].timestamp).toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div className="inspect-row">
-                      <span className="inspect-label">Page Title:</span>
-                      <span className="inspect-value highlight">
-                        {timelineData[activeScreenshotIndex].pageTitle}
-                      </span>
-                    </div>
-
-                    <div className="inspect-row">
-                      <span className="inspect-label">URL:</span>
-                      <a
-                        href={timelineData[activeScreenshotIndex].url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inspect-value url-link text-ellipsis"
-                      >
-                        {timelineData[activeScreenshotIndex].url || 'System Tab'}
-                      </a>
-                    </div>
-
-                    <div className="inspect-row">
-                      <span className="inspect-label">Confidence:</span>
-                      <span className="inspect-value text-success">
-                        {(timelineData[activeScreenshotIndex].confidence * 100).toFixed(0)}% Match
-                      </span>
-                    </div>
-
-                    <div className="inspect-box">
-                      <h4>AI Action Summary</h4>
-                      <p className="summary-text">{timelineData[activeScreenshotIndex].summary}</p>
-                    </div>
-
-                    <div className="inspect-box">
-                      <h4>Extracted Text Elements</h4>
-                      <div className="inspect-tags">
-                        {timelineData[activeScreenshotIndex].detectedTexts &&
-                        timelineData[activeScreenshotIndex].detectedTexts.length > 0 ? (
-                          timelineData[activeScreenshotIndex].detectedTexts.map((text: string, i: number) => (
-                            <span className="inspect-tag" key={i}>{text}</span>
-                          ))
-                        ) : (
-                          <span className="text-muted">No texts detected.</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="empty-panel">No details available.</div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* TAB 5: USAGE ANALYTICS */}
           {activeTab === 'analytics' && (
@@ -958,7 +1062,9 @@ export const App: React.FC = () => {
                   <div className="metric-icon">🎯</div>
                   <div className="metric-info">
                     <h3>Productivity Score</h3>
-                    <p className="metric-value">92%</p>
+                    <p className="metric-value">
+                      {productivityScore !== null ? `${productivityScore}%` : '—'}
+                    </p>
                   </div>
                 </div>
 

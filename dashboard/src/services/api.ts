@@ -33,6 +33,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   const data = await response.json().catch(() => ({}));
 
+  // Auto-logout on 401 — token expired or invalid
+  if (response.status === 401) {
+    removeToken();
+    // Reload to show login page
+    window.location.reload();
+    throw new Error('Session expired. Please log in again.');
+  }
+
   if (!response.ok) {
     throw new Error(data.message || `API request failed with status ${response.status}`);
   }

@@ -10,11 +10,22 @@ import logger from '../utils/logger';
 // @route   POST /api/auth/register
 // @access  Public
 export const register = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-  const { email, password, role } = req.body;
+  const { email, password } = req.body;
 
   try {
     if (!email || !password) {
       res.status(400).json({ success: false, message: 'Please provide email and password' });
+      return;
+    }
+
+    if (password.length < 8) {
+      res.status(400).json({ success: false, message: 'Password must be at least 8 characters' });
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      res.status(400).json({ success: false, message: 'Please provide a valid email address' });
       return;
     }
 
@@ -28,7 +39,7 @@ export const register = async (req: AuthenticatedRequest, res: Response): Promis
     const user = await User.create({
       email,
       password: hashedPassword,
-      role: role || 'user',
+      role: 'user', // Always user — never trust role from request body
     });
 
     // Create default settings for the registered user
