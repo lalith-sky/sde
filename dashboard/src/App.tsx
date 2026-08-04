@@ -330,7 +330,7 @@ export const App: React.FC = () => {
           </form>
 
           <div className="login-footer">
-            <button onClick={() => setIsRegistering(!isRegistering)} className="toggle-auth">
+            <button type="button" onClick={() => setIsRegistering(!isRegistering)} className="toggle-auth">
               {isRegistering ? 'Already have an account? Sign In' : 'Need an account? Register'}
             </button>
           </div>
@@ -350,22 +350,22 @@ export const App: React.FC = () => {
         </div>
 
         <nav className="sidebar-nav">
-          <button className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+          <button type="button" className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
             📊 Overview
           </button>
-          <button className={`nav-item ${activeTab === 'sessions' ? 'active' : ''}`} onClick={() => setActiveTab('sessions')}>
+          <button type="button" className={`nav-item ${activeTab === 'sessions' ? 'active' : ''}`} onClick={() => setActiveTab('sessions')}>
             ⏱️ Sessions Log
           </button>
-          <button className={`nav-item ${activeTab === 'timeline' ? 'active' : ''}`} onClick={() => setActiveTab('timeline')}>
+          <button type="button" className={`nav-item ${activeTab === 'timeline' ? 'active' : ''}`} onClick={() => setActiveTab('timeline')}>
             📅 Activity Timeline
           </button>
-          <button className={`nav-item ${activeTab === 'screenshots' ? 'active' : ''}`} onClick={() => setActiveTab('screenshots')}>
+          <button type="button" className={`nav-item ${activeTab === 'screenshots' ? 'active' : ''}`} onClick={() => setActiveTab('screenshots')}>
             🖼️ Screenshot Viewer
           </button>
-          <button className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
+          <button type="button" className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`} onClick={() => setActiveTab('analytics')}>
             📈 Metrics & Charts
           </button>
-          <button className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
+          <button type="button" className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`} onClick={() => setActiveTab('settings')}>
             ⚙️ Preferences Settings
           </button>
         </nav>
@@ -378,7 +378,7 @@ export const App: React.FC = () => {
               <span className="user-role">{user.role.toUpperCase()}</span>
             </div>
           </div>
-          <button onClick={handleLogout} className="btn-logout">
+          <button type="button" onClick={handleLogout} className="btn-logout">
             🚪 Sign Out
           </button>
         </div>
@@ -477,7 +477,10 @@ export const App: React.FC = () => {
                         <span>Interval:</span>
                         <span>every {stats.activeSession.screenshotInterval} seconds</span>
                       </div>
-                      <button onClick={() => handleStopActiveSession(stats.activeSession.id)} className="btn-stop-monitoring">
+                      <button type="button" onClick={() => {
+                        console.log('🛑 Stop Session clicked:', stats.activeSession.id);
+                        handleStopActiveSession(stats.activeSession.id);
+                      }} className="btn-stop-monitoring">
                         🛑 Stop Recording Session
                       </button>
                     </div>
@@ -590,11 +593,12 @@ export const App: React.FC = () => {
                         </td>
                         <td>
                           {sess.status === 'active' ? (
-                            <button onClick={() => handleStopActiveSession(sess._id)} className="btn-stop-sm">
+                            <button type="button" onClick={() => handleStopActiveSession(sess._id)} className="btn-stop-sm">
                               Stop
                             </button>
                           ) : (
                             <button
+                              type="button"
                               onClick={() => {
                                 setSelectedSessionId(sess._id);
                                 loadSessionTimeline(sess._id);
@@ -616,19 +620,26 @@ export const App: React.FC = () => {
                 </tbody>
               </table>
 
-              {/* Pagination controls */}
               <div className="pagination-bar">
                 <button
+                  type="button"
                   disabled={sessionsPage === 1}
-                  onClick={() => loadSessions(sessionsPage - 1)}
+                  onClick={() => {
+                    console.log('⬅️ Sessions Previous clicked');
+                    loadSessions(sessionsPage - 1);
+                  }}
                   className="btn-page"
                 >
                   Previous
                 </button>
                 <span>Page {sessionsPage} of {sessionsTotalPages}</span>
                 <button
+                  type="button"
                   disabled={sessionsPage === sessionsTotalPages}
-                  onClick={() => loadSessions(sessionsPage + 1)}
+                  onClick={() => {
+                    console.log('➡️ Sessions Next clicked');
+                    loadSessions(sessionsPage + 1);
+                  }}
                   className="btn-page"
                 >
                   Next
@@ -674,7 +685,10 @@ export const App: React.FC = () => {
                   <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} />
                 </div>
 
-                <button onClick={() => loadActivities(1)} className="btn-filter">
+                <button type="button" onClick={() => {
+                  console.log('🔍 Apply Filters clicked');
+                  loadActivities(1);
+                }} className="btn-filter">
                   Apply Filters
                 </button>
               </div>
@@ -719,19 +733,26 @@ export const App: React.FC = () => {
                   <div className="empty-panel">No activities found matching filters.</div>
                 )}
 
-                {/* Pagination */}
                 <div className="pagination-bar">
                   <button
+                    type="button"
                     disabled={activitiesPage === 1}
-                    onClick={() => loadActivities(activitiesPage - 1)}
+                    onClick={() => {
+                      console.log('⬅️ Activities Previous clicked');
+                      loadActivities(activitiesPage - 1);
+                    }}
                     className="btn-page"
                   >
                     Previous
                   </button>
                   <span>Page {activitiesPage} of {activitiesTotalPages}</span>
                   <button
+                    type="button"
                     disabled={activitiesPage === activitiesTotalPages}
-                    onClick={() => loadActivities(activitiesPage + 1)}
+                    onClick={() => {
+                      console.log('➡️ Activities Next clicked');
+                      loadActivities(activitiesPage + 1);
+                    }}
                     className="btn-page"
                   >
                     Next
@@ -778,8 +799,12 @@ export const App: React.FC = () => {
                     
                     <div className="carousel-controls">
                       <button
+                        type="button"
                         disabled={activeScreenshotIndex === 0}
-                        onClick={() => setActiveScreenshotIndex(activeScreenshotIndex - 1)}
+                        onClick={() => {
+                          console.log('⬅️ Screenshot Previous clicked');
+                          setActiveScreenshotIndex(activeScreenshotIndex - 1);
+                        }}
                         className="btn-carousel-ctrl"
                       >
                         ◀ Previous
@@ -788,8 +813,12 @@ export const App: React.FC = () => {
                         Capture {activeScreenshotIndex + 1} of {timelineData.length}
                       </span>
                       <button
+                        type="button"
                         disabled={activeScreenshotIndex === timelineData.length - 1}
-                        onClick={() => setActiveScreenshotIndex(activeScreenshotIndex + 1)}
+                        onClick={() => {
+                          console.log('➡️ Screenshot Next clicked');
+                          setActiveScreenshotIndex(activeScreenshotIndex + 1);
+                        }}
                         className="btn-carousel-ctrl"
                       >
                         Next ▶
