@@ -99,10 +99,8 @@ export const App: React.FC = () => {
   // Selected details
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const [timelineData, setTimelineData] = useState<any[]>([]);
-  const [timelineSession, setTimelineSession] = useState<any>(null);
   const [activeScreenshotIndex, setActiveScreenshotIndex] = useState(0);
 
-  // Loading states
   // Settings state
   const [screenshotInterval, setScreenshotInterval] = useState(10);
   const [captureMode, setCaptureMode] = useState<'active_tab' | 'desktop'>('active_tab');
@@ -111,9 +109,7 @@ export const App: React.FC = () => {
   const [settingsMessage, setSettingsMessage] = useState('');
 
   // Loading states
-  const [loadingStats, setLoadingStats] = useState(false);
   const [loadingSessions, setLoadingSessions] = useState(false);
-  const [loadingActivities, setLoadingActivities] = useState(false);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
   const [stopConfirmId, setStopConfirmId] = useState<string | null>(null);
 
@@ -156,7 +152,6 @@ export const App: React.FC = () => {
   // 2. Load Dashboard Stats
   const loadDashboardStats = async () => {
     if (!user) return;
-    setLoadingStats(true);
     try {
       const res = await api.getDashboardStats();
       if (res.success) {
@@ -166,8 +161,6 @@ export const App: React.FC = () => {
       }
     } catch (err) {
       console.error('Error fetching dashboard stats:', err);
-    } finally {
-      setLoadingStats(false);
     }
   };
 
@@ -192,7 +185,6 @@ export const App: React.FC = () => {
   // 4. Load Activities List (Timeline Filter view)
   const loadActivities = async (page = 1) => {
     if (!user) return;
-    setLoadingActivities(true);
     try {
       const res = await api.getActivities({
         page,
@@ -209,8 +201,6 @@ export const App: React.FC = () => {
       }
     } catch (err) {
       console.error('Error loading activities:', err);
-    } finally {
-      setLoadingActivities(false);
     }
   };
 
@@ -223,7 +213,6 @@ export const App: React.FC = () => {
     try {
       const res = await api.getTimeline(sessId);
       if (res.success) {
-        setTimelineSession(res.session);
         setTimelineData(res.activities);
       }
     } catch (err) {
@@ -718,6 +707,8 @@ export const App: React.FC = () => {
                 </button>
               </div>
             </div>
+              )}
+            </div>
           )}
 
           {/* TAB 3: ACTIVITY TIMELINE */}
@@ -1020,25 +1011,6 @@ export const App: React.FC = () => {
               </div>
             </div>
           )}
-              {/* Left side: Carousel View */}
-              <div className="screenshots-carousel-panel glass flex-column">
-                <div className="panel-header-select">
-                  <h2>Screenshot Gallery Viewer {timelineSession && `(${timelineSession._id.substring(0, 8)})`}</h2>
-                  <select
-                    value={selectedSessionId}
-                    onChange={(e) => {
-                      setSelectedSessionId(e.target.value);
-                      loadSessionTimeline(e.target.value);
-                    }}
-                  >
-                    <option value="" disabled>Select Session</option>
-                    {sessions.map((s) => (
-                      <option key={s._id} value={s._id}>
-                        Session: {new Date(s.startTime).toLocaleTimeString()} ({s._id.substring(0, 8)})
-                      </option>
-                    ))}
-                  </select>
-                </div>
 
           {/* TAB 5: USAGE ANALYTICS */}
           {activeTab === 'analytics' && (
