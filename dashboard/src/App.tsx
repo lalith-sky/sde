@@ -107,6 +107,10 @@ export const App: React.FC = () => {
   const [aiConfidenceThreshold, setAiConfidenceThreshold] = useState(0.7);
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [settingsMessage, setSettingsMessage] = useState('');
+  const [settingsActiveSection, setSettingsActiveSection] = useState<'account' | 'monitoring' | 'alerts' | 'integrations'>('account');
+  const [continuousCaptureMode, setContinuousCaptureMode] = useState(true);
+  const [captureResolution, setCaptureResolution] = useState<'1080p' | '720p'>('1080p');
+  const [screenshotViewMode, setScreenshotViewMode] = useState<'grid' | 'list'>('grid');
 
   // Loading states
   const [loadingSessions, setLoadingSessions] = useState(false);
@@ -455,9 +459,20 @@ export const App: React.FC = () => {
             </p>
           </div>
 
-          <div className="system-indicator">
-            <span className="indicator-dot online"></span>
-            Server Connection: Active
+          <div style={{display:'flex',gap:12,alignItems:'center'}}>
+            <div className="system-indicator">
+              <span className="indicator-dot online"></span>
+              Server Connection: Active
+            </div>
+            <button 
+              type="button" 
+              onClick={() => setActiveTab('settings')}
+              className="btn-page"
+              style={{padding:'8px 16px',cursor:'pointer'}}
+              title="User Settings"
+            >
+              ⚙️
+            </button>
           </div>
         </header>
 
@@ -840,11 +855,42 @@ export const App: React.FC = () => {
                     <input
                       placeholder="Filter by Session ID or Node..."
                       value={selectedSessionId}
-                      onChange={e => { setSelectedSessionId(e.target.value); }}
+                      onChange={e => { 
+                        setSelectedSessionId(e.target.value); 
+                        if(e.target.value) loadSessionTimeline(e.target.value);
+                      }}
                     />
                   </div>
-                  <button type="button" className="sc-btn-outline">⚙ Filters</button>
-                  <button type="button" className="sc-btn-primary">⬇ Export Batch</button>
+                  <button 
+                    type="button" 
+                    className="sc-btn-outline"
+                    onClick={() => {
+                      alert('Filters:\n- Date Range\n- Confidence Threshold\n- Session Status\n- Domain Filter\n\nThis feature is coming soon!');
+                    }}
+                  >
+                    ⚙ Filters
+                  </button>
+                  <button 
+                    type="button" 
+                    className="sc-btn-primary"
+                    onClick={() => {
+                      if (timelineData.length === 0) {
+                        alert('No data to export. Please select a session first.');
+                        return;
+                      }
+                      const dataStr = JSON.stringify(timelineData, null, 2);
+                      const dataBlob = new Blob([dataStr], {type: 'application/json'});
+                      const url = URL.createObjectURL(dataBlob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      link.download = `screenshots-${selectedSessionId || 'export'}-${new Date().toISOString()}.json`;
+                      link.click();
+                      URL.revokeObjectURL(url);
+                      alert(`Exported ${timelineData.length} capture nodes successfully!`);
+                    }}
+                  >
+                    ⬇ Export Batch
+                  </button>
                 </div>
               </div>
 
@@ -857,8 +903,22 @@ export const App: React.FC = () => {
                       <span className="sc-live-dot"><span className="pulse-dot" style={{background:'var(--success)'}}/>Live Syncing</span>
                     </div>
                     <div className="sc-view-btns">
-                      <button type="button" className="sc-view-btn active">⊞</button>
-                      <button type="button" className="sc-view-btn">≡</button>
+                      <button 
+                        type="button" 
+                        className={`sc-view-btn ${screenshotViewMode === 'grid' ? 'active' : ''}`}
+                        onClick={() => setScreenshotViewMode('grid')}
+                        title="Grid View"
+                      >
+                        ⊞
+                      </button>
+                      <button 
+                        type="button" 
+                        className={`sc-view-btn ${screenshotViewMode === 'list' ? 'active' : ''}`}
+                        onClick={() => setScreenshotViewMode('list')}
+                        title="List View"
+                      >
+                        ≡
+                      </button>
                     </div>
                   </div>
 
@@ -879,11 +939,11 @@ export const App: React.FC = () => {
                   {loadingTimeline ? (
                     <div className="loading-overlay"><div className="spinner"/> Loading captures...</div>
                   ) : timelineData.length > 0 ? (
-                    <div className="sc-nodes-grid">
+                    <div className={screenshotViewMode === 'grid' ? 'sc-nodes-grid' : 'sc-nodes-list'}>
                       {timelineData.map((item, idx) => (
                         <div
                           key={item._id}
-                          className={`sc-node-card ${idx === activeScreenshotIndex ? 'active' : ''}`}
+                          className={`sc-node-card ${idx === activeScreenshotIndex ? 'active' : ''} ${screenshotViewMode === 'list' ? 'list-mode' : ''}`}
                           onClick={() => setActiveScreenshotIndex(idx)}
                         >
                           <div className="sc-node-conf">{(item.confidence * 100).toFixed(0)}%<br/><span>Conf</span></div>
@@ -903,6 +963,12 @@ export const App: React.FC = () => {
                             <div className="sc-node-time">{new Date(item.timestamp).toTimeString().slice(0,8)}</div>
                             <div className="sc-node-time">UTC</div>
                           </div>
+                          {screenshotViewMode === 'list' && (
+                            <div className="sc-node-list-details">
+                              <div className="sc-node-list-title">{item.pageTitle}</div>
+                              <div className="sc-node-list-summary">{item.summary?.slice(0, 80)}...</div>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -921,8 +987,37 @@ export const App: React.FC = () => {
                     <div className="sc-inspector-header">
                       <h3>Focus Inspector</h3>
                       <div style={{display:'flex',gap:8}}>
-                        <button type="button" className="sc-icon-btn">🔍</button>
-                        <button type="button" className="sc-icon-btn">↗</button>
+                        <button 
+                          type="button" 
+                          className="sc-icon-btn"
+                          onClick={() => {
+                            if (timelineData[activeScreenshotIndex]?.screenshotId) {
+                              window.open(api.getScreenshotUrl(timelineData[activeScreenshotIndex].screenshotId._id), '_blank');
+                            }
+                          }}
+                          title="Open in new tab"
+                        >
+                          ↗
+                        </button>
+                        <button 
+                          type="button" 
+                          className="sc-icon-btn"
+                          onClick={() => {
+                            const img = document.querySelector('.sc-inspector-img') as HTMLImageElement;
+                            if (img) {
+                              if (img.style.transform === 'scale(2)') {
+                                img.style.transform = 'scale(1)';
+                                img.style.cursor = 'default';
+                              } else {
+                                img.style.transform = 'scale(2)';
+                                img.style.cursor = 'zoom-out';
+                              }
+                            }
+                          }}
+                          title="Zoom in/out"
+                        >
+                          🔍
+                        </button>
                       </div>
                     </div>
 
@@ -1102,78 +1197,293 @@ export const App: React.FC = () => {
             </div>
           )}
 
-          {/* TAB 6: PREFERENCES SETTINGS */}
+          {/* TAB 6: PREFERENCES SETTINGS - Advanced UI */}
           {activeTab === 'settings' && (
-            <div className="tab-settings animate-fade glass card-padding">
-              <h2>System Configuration</h2>
-              
-              <form onSubmit={handleSettingsUpdate} className="settings-form">
-                <div className="form-section">
-                  <h3>Extension Preferences</h3>
-                  
-                  <div className="form-group">
-                    <label htmlFor="screenshotInterval">Default Screenshot Interval (seconds)</label>
-                    <input
-                      id="screenshotInterval"
-                      type="number"
-                      min="5"
-                      max="3600"
-                      value={screenshotInterval}
-                      onChange={(e) => setScreenshotInterval(parseInt(e.target.value) || 10)}
-                    />
-                    <small className="help-text">How often the extension takes background screen captures.</small>
-                  </div>
+            <div className="tab-settings animate-fade">
+              {/* Page Header */}
+              <div className="settings-page-header">
+                <div>
+                  <h1 className="settings-page-title">System Preferences</h1>
+                  <p className="settings-page-subtitle">
+                    Configure global monitoring parameters, active integrations, and alert routing policies.
+                  </p>
+                </div>
+                <div className="settings-actions">
+                  <button type="button" className="settings-discard-btn" onClick={() => loadUserSettings()}>
+                    Discard
+                  </button>
+                  <button type="button" className="settings-apply-btn" onClick={(e:any) => handleSettingsUpdate(e)}>
+                    💾 Apply Configuration
+                  </button>
+                </div>
+              </div>
 
-                  <div className="form-group">
-                    <label htmlFor="captureMode">Capture Scope</label>
-                    <select
-                      id="captureMode"
-                      value={captureMode}
-                      onChange={(e) => setCaptureMode(e.target.value as 'active_tab' | 'desktop')}
+              <div className="settings-layout">
+                {/* Left Sidebar Navigation */}
+                <div className="settings-sidebar">
+                  <div className="settings-nav">
+                    <button
+                      type="button"
+                      className={`settings-nav-item ${settingsActiveSection === 'account' ? 'active' : ''}`}
+                      onClick={() => setSettingsActiveSection('account')}
                     >
-                      <option value="active_tab">Active Tab (Visible Area)</option>
-                      <option value="desktop">Full Monitor Desktop Capture (Not Supported Local)</option>
-                    </select>
+                      🔐 Account & Security
+                    </button>
+                    <button
+                      type="button"
+                      className={`settings-nav-item ${settingsActiveSection === 'monitoring' ? 'active' : ''}`}
+                      onClick={() => setSettingsActiveSection('monitoring')}
+                    >
+                      🖥️ Monitoring Engine
+                    </button>
+                    <button
+                      type="button"
+                      className={`settings-nav-item ${settingsActiveSection === 'alerts' ? 'active' : ''}`}
+                      onClick={() => setSettingsActiveSection('alerts')}
+                    >
+                      🔔 Alert Routing
+                    </button>
+                    <button
+                      type="button"
+                      className={`settings-nav-item ${settingsActiveSection === 'integrations' ? 'active' : ''}`}
+                      onClick={() => setSettingsActiveSection('integrations')}
+                    >
+                      🔗 Integrations
+                    </button>
+                  </div>
+
+                  {/* Usage Quota Card */}
+                  <div className="settings-quota-card glass">
+                    <div className="quota-title">Usage Quota</div>
+                    <div className="quota-value">82<span style={{fontSize:18,color:'var(--text-muted)'}}>%</span></div>
+                    <div className="quota-bar">
+                      <div className="quota-bar-fill" style={{width:'82%'}}></div>
+                    </div>
+                    <div className="quota-warning">
+                      Approaching limit. Consider upgrading for extended retention.
+                    </div>
                   </div>
                 </div>
 
-                <div className="form-section">
-                  <h3>AI Processing Configuration</h3>
+                {/* Right Content Area */}
+                <div className="settings-content">
+                  {/* ACCOUNT & SECURITY SECTION */}
+                  {settingsActiveSection === 'account' && (
+                    <>
+                      <div className="settings-section glass">
+                        <div className="settings-section-header">
+                          <span className="settings-section-icon">🔐</span>
+                          <h2 className="settings-section-title">Account & Security</h2>
+                        </div>
 
-                  <div className="form-group">
-                    <label htmlFor="aiConfidenceThreshold">AI Confidence Threshold</label>
-                    <input
-                      id="aiConfidenceThreshold"
-                      type="number"
-                      step="0.05"
-                      min="0.1"
-                      max="1.0"
-                      value={aiConfidenceThreshold}
-                      onChange={(e) => setAiConfidenceThreshold(parseFloat(e.target.value) || 0.7)}
-                    />
-                  </div>
+                        <div className="settings-group">
+                          <div className="settings-group-title">OPERATOR PROFILE</div>
+                          
+                          <div className="settings-profile-card">
+                            <div className="settings-avatar-upload">
+                              <div className="settings-avatar">
+                                👤
+                              </div>
+                              <button type="button" className="settings-avatar-btn">Upload New</button>
+                              <div className="settings-avatar-hint">JPG, GIF or PNG. Max size of 800K</div>
+                            </div>
 
-                  <div className="form-group">
-                    <label htmlFor="geminiApiKey">Google Gemini 1.5 API Key</label>
-                    <input
-                      id="geminiApiKey"
-                      type="password"
-                      value={geminiApiKey}
-                      onChange={(e) => setGeminiApiKey(e.target.value)}
-                      placeholder="AIzaSy..."
-                    />
-                    <small className="help-text">
-                      Leave blank to run on mock visual parser. Put your real Gemini API key to activate multimodal vision.
-                    </small>
-                  </div>
+                            <div className="settings-profile-fields">
+                              <div className="settings-field">
+                                <label className="settings-field-label">Display Name</label>
+                                <input 
+                                  type="text" 
+                                  className="settings-field-input" 
+                                  defaultValue="AI Controller Alpha"
+                                />
+                              </div>
+                              <div className="settings-field">
+                                <label className="settings-field-label">Contact Email</label>
+                                <input 
+                                  type="email" 
+                                  className="settings-field-input" 
+                                  defaultValue={user.email}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="settings-group">
+                          <div className="settings-group-title">API AUTHENTICATION</div>
+                          
+                          <div className="settings-api-card">
+                            <div className="settings-api-title">Primary Access Key</div>
+                            <div className="settings-api-desc">
+                              Manage root access tokens for headless integration and automated reporting.
+                            </div>
+                            
+                            <div className="settings-api-key-row">
+                              <input 
+                                type="password" 
+                                className="settings-api-key-input" 
+                                value={geminiApiKey || "••••••••••••••••••••••••••"}
+                                onChange={(e) => setGeminiApiKey(e.target.value)}
+                              />
+                              <button type="button" className="settings-api-icon-btn" title="Copy Key">
+                                📋
+                              </button>
+                            </div>
+                            
+                            <button type="button" className="settings-api-rotate-btn">
+                              🔄 Rotate Keys
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* MONITORING ENGINE SECTION */}
+                  {settingsActiveSection === 'monitoring' && (
+                    <>
+                      <div className="settings-section glass">
+                        <div className="settings-section-header">
+                          <span className="settings-section-icon">🖥️</span>
+                          <h2 className="settings-section-title">Monitoring Engine</h2>
+                        </div>
+
+                        <div className="settings-group">
+                          <div className="settings-toggle-row">
+                            <div className="settings-toggle-info">
+                              <div className="settings-toggle-title">Continuous Capture Mode</div>
+                              <div className="settings-toggle-desc">
+                                Automatically record DOM states and visual diffs at set intervals.
+                              </div>
+                            </div>
+                            <div 
+                              className={`settings-toggle-switch ${continuousCaptureMode ? 'active' : ''}`}
+                              onClick={() => setContinuousCaptureMode(!continuousCaptureMode)}
+                            ></div>
+                          </div>
+                        </div>
+
+                        <div className="settings-group">
+                          <div className="settings-group-title">CAPTURE RESOLUTION</div>
+                          
+                          <div className="settings-radio-group">
+                            <div 
+                              className={`settings-radio-option ${captureResolution === '1080p' ? 'selected' : ''}`}
+                              onClick={() => setCaptureResolution('1080p')}
+                            >
+                              <div className="settings-radio-circle"></div>
+                              <div className="settings-radio-label">
+                                <div className="settings-radio-title">High Fidelity (1080p)</div>
+                                <div className="settings-radio-desc">Best for OCR and UI inspection.</div>
+                              </div>
+                            </div>
+                            
+                            <div 
+                              className={`settings-radio-option ${captureResolution === '720p' ? 'selected' : ''}`}
+                              onClick={() => setCaptureResolution('720p')}
+                            >
+                              <div className="settings-radio-circle"></div>
+                              <div className="settings-radio-label">
+                                <div className="settings-radio-title">Standard (720p)</div>
+                                <div className="settings-radio-desc">Balanced storage and clarity.</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="settings-group">
+                          <div className="settings-group-title">SENSITIVITY THRESHOLD</div>
+                          
+                          <div className="settings-slider">
+                            <div className="settings-slider-header">
+                              <span className="settings-slider-label">Screenshot Interval</span>
+                              <span className="settings-slider-value">{screenshotInterval}s</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="5"
+                              max="60"
+                              value={screenshotInterval}
+                              onChange={(e) => setScreenshotInterval(parseInt(e.target.value))}
+                              className="settings-slider-input"
+                            />
+                            <div className="settings-slider-range-labels">
+                              <span>Lenient</span>
+                              <span>Strict (95%)</span>
+                            </div>
+                          </div>
+
+                          <div className="settings-slider">
+                            <div className="settings-slider-header">
+                              <span className="settings-slider-label">AI Confidence</span>
+                              <span className="settings-slider-value">{(aiConfidenceThreshold * 100).toFixed(0)}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="0.1"
+                              max="1.0"
+                              step="0.05"
+                              value={aiConfidenceThreshold}
+                              onChange={(e) => setAiConfidenceThreshold(parseFloat(e.target.value))}
+                              className="settings-slider-input"
+                            />
+                            <div className="settings-slider-range-labels">
+                              <span>10%</span>
+                              <span>100%</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* ALERT ROUTING SECTION */}
+                  {settingsActiveSection === 'alerts' && (
+                    <>
+                      <div className="settings-section glass">
+                        <div className="settings-section-header">
+                          <span className="settings-section-icon">🔔</span>
+                          <h2 className="settings-section-title">Alert Routing</h2>
+                        </div>
+
+                        <div className="empty-panel" style={{padding:'60px 20px'}}>
+                          <div style={{fontSize:48,marginBottom:16}}>🔔</div>
+                          <div style={{fontSize:15,fontWeight:600,marginBottom:8}}>Alert Configuration</div>
+                          <div style={{fontSize:13,color:'var(--text-muted)'}}>
+                            Configure notification channels and alert thresholds here.
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {/* INTEGRATIONS SECTION */}
+                  {settingsActiveSection === 'integrations' && (
+                    <>
+                      <div className="settings-section glass">
+                        <div className="settings-section-header">
+                          <span className="settings-section-icon">🔗</span>
+                          <h2 className="settings-section-title">Integrations</h2>
+                        </div>
+
+                        <div className="empty-panel" style={{padding:'60px 20px'}}>
+                          <div style={{fontSize:48,marginBottom:16}}>🔗</div>
+                          <div style={{fontSize:15,fontWeight:600,marginBottom:8}}>Third-Party Integrations</div>
+                          <div style={{fontSize:13,color:'var(--text-muted)'}}>
+                            Connect external services like Slack, Discord, or Webhooks.
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {settingsMessage && (
+                    <div className="settings-alert-msg" style={{marginTop:20}}>
+                      {settingsMessage}
+                    </div>
+                  )}
                 </div>
-
-                {settingsMessage && <div className="settings-alert-msg">{settingsMessage}</div>}
-
-                <button type="submit" className="btn-primary" style={{ maxWidth: '240px' }}>
-                  Save Configurations
-                </button>
-              </form>
+              </div>
             </div>
           )}
         </div>
