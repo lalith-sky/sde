@@ -307,15 +307,19 @@ export const App: React.FC = () => {
 
   // End an active session from the dashboard (with confirm)
   const handleStopActiveSession = async (sessId: string) => {
+    console.log('🛑 Stopping session:', sessId);
     setStopConfirmId(null);
     try {
       const res = await api.endSession(sessId);
+      console.log('✅ Stop session response:', res);
       if (res.success) {
         if (activeTab === 'dashboard') loadDashboardStats();
         if (activeTab === 'sessions') loadSessions(sessionsPage);
+        alert('Session stopped successfully!');
       }
     } catch (err) {
-      console.error('Failed to stop session:', (err as Error).message);
+      console.error('❌ Failed to stop session:', (err as Error).message);
+      alert(`Failed to stop session: ${(err as Error).message}`);
     }
   };
 
@@ -669,9 +673,34 @@ export const App: React.FC = () => {
                         </td>
                         <td>
                           {sess.status === 'active' ? (
-                            <button type="button" onClick={() => handleStopActiveSession(sess._id)} className="btn-stop-sm">
-                              Stop
-                            </button>
+                            stopConfirmId === sess._id ? (
+                              <div style={{display:'flex',gap:4}}>
+                                <button 
+                                  type="button" 
+                                  onClick={() => handleStopActiveSession(sess._id)} 
+                                  className="btn-stop-sm"
+                                  style={{fontSize:10}}
+                                >
+                                  ✓ Confirm
+                                </button>
+                                <button 
+                                  type="button" 
+                                  onClick={() => setStopConfirmId(null)} 
+                                  className="btn-page"
+                                  style={{fontSize:10,padding:'4px 8px'}}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            ) : (
+                              <button 
+                                type="button" 
+                                onClick={() => setStopConfirmId(sess._id)} 
+                                className="btn-stop-sm"
+                              >
+                                Stop
+                              </button>
+                            )
                           ) : (
                             <button
                               type="button"
