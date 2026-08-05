@@ -8,7 +8,6 @@ import { uploadMiddleware } from './screenshotController';
 import { analyzeScreen } from '../services/aiService';
 import logToDB from '../utils/dbLogger';
 import logger from '../utils/logger';
-import fs from 'fs';
 
 // @desc    Analyze screen screenshot using Gemini AI / Mock AI
 // @route   POST /api/activities/analyze
@@ -21,11 +20,14 @@ export const analyzeActivity = async (req: AuthenticatedRequest, res: Response):
     }
 
     const file = req.file;
+    const uploadedFile = file as Express.Multer.File & {
+  path: string;
+  filename: string;
+};
     const { sessionId, pageTitle, url } = req.body;
     const userId = req.user?.id;
 
     if (!userId) {
-      if (file) fs.unlinkSync(file.path);
       res.status(401).json({ success: false, message: 'Unauthorized' });
       return;
     }
@@ -36,7 +38,6 @@ export const analyzeActivity = async (req: AuthenticatedRequest, res: Response):
     }
 
     if (!sessionId) {
-      fs.unlinkSync(file.path);
       res.status(400).json({ success: false, message: 'Please provide sessionId' });
       return;
     }
@@ -45,32 +46,30 @@ export const analyzeActivity = async (req: AuthenticatedRequest, res: Response):
       // Verify session exists
       const session = await Session.findById(sessionId);
       if (!session) {
-        fs.unlinkSync(file.path);
         res.status(404).json({ success: false, message: 'Session not found' });
         return;
       }
 
       // 1. Create temporary Screenshot entry to get an ID
-      const screenshot = await Screenshot.create({
-        sessionId,
-        filename: file.filename,
-        filepath: file.path,
-        mimeType: file.mimetype,
-        size: file.size,
-      });
-
+const screenshot = await Screenshot.create({
+  sessionId,
+  filename: uploadedFile.filename,
+  filepath: uploadedFile.path,
+  mimeType: uploadedFile.mimetype,
+  size: uploadedFile.size,
+});
       // 2. Fetch User's Settings to see if there's a stored Gemini API Key
       const userSettings = await Settings.findOne({ userId });
       const userApiKey = userSettings?.geminiApiKey || '';
 
       // 3. Process image with AI
-      const aiResult = await analyzeScreen(
-        file.path,
-        file.mimetype,
-        pageTitle || 'Browser Tab',
-        url || '',
-        userApiKey
-      );
+const aiResult = await analyzeScreen(
+  uploadedFile.path,
+  uploadedFile.mimetype,
+  pageTitle || 'Browser Tab',
+  url || '',
+  userApiKey
+);
 
       // 4. Create Activity record
       const activity = await Activity.create({
@@ -100,12 +99,12 @@ export const analyzeActivity = async (req: AuthenticatedRequest, res: Response):
         activity,
       });
     } catch (error) {
-      logger.error(`Error in activity analyze handler: ${(error as Error).message}`);
-      if (file && fs.existsSync(file.path)) {
-        fs.unlinkSync(file.path);
-      }
-      res.status(500).json({ success: false, message: 'Internal Server Error' });
-    }
+  logger.error(`Error in activity analyze handler: ${(error as Error).message}`);
+  res.status(500).json({
+    success: false,
+    message: 'Internal Server Error',
+  });
+}
   });
 };
 
